@@ -1,0 +1,23 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+WORKDIR /app
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY AthleteID/brand-portal/package.json ./AthleteID/brand-portal/
+
+RUN pnpm install --frozen-lockfile
+
+COPY AthleteID/brand-portal/ ./AthleteID/brand-portal/
+
+RUN pnpm --filter athlete-id-brand-portal build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+COPY --from=base /app/AthleteID/brand-portal/.next/standalone ./
+COPY --from=base /app/AthleteID/brand-portal/.next/static ./AthleteID/brand-portal/.next/static
+COPY --from=base /app/AthleteID/brand-portal/public ./AthleteID/brand-portal/public
+
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["node", "server.js"]
