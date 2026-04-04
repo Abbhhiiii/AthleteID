@@ -1,0 +1,27 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+WORKDIR /app
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY AthleteID/packages/shared/package.json ./packages/shared/
+COPY AthleteID/backend/package.json ./backend/
+
+RUN pnpm install --frozen-lockfile --prod=false
+
+COPY AthleteID/packages/shared/ ./packages/shared/
+COPY AthleteID/backend/ ./backend/
+
+RUN pnpm --filter @athleteid/backend prisma:generate 2>/dev/null || true
+RUN pnpm --filter @athleteid/backend build 2>/dev/null || true
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+COPY --from=base /app/backend/dist ./dist
+COPY --from=base /app/backend/prisma ./prisma
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/backend/package.json ./
+
+ENV NODE_ENV=production
+EXPOSE 4000
+CMD ["node", "dist/server.js"]
